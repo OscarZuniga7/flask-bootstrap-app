@@ -28,7 +28,10 @@ def add_post():
     cursor.execute("INSERT INTO posts (title, content) VALUES (?, ?)", (title, content))
     connection.commit()
     connection.close()
-    return redirect(url_for('crud_index'))
+    # Modificar la URL generada por `url_for` para evitar el puerto
+    redirect_url = url_for('crud_index', _external=True).replace(':5000', '')
+    return redirect(redirect_url)
+    #return redirect(url_for('crud_index'))
 
 
 
