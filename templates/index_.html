@@ -23,6 +23,7 @@
             </div>
             <button type="submit" class="btn btn-primary">Agregar</button>
         </form>
+        
 
         <hr>
 
@@ -46,7 +47,7 @@
                     <td>
                         <form action="{{ url_for('delete_post', post_id=post[0]) }}" method="POST" style="display:inline;">
                             <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
-                        </form>
+                        </form>                        
                     </td>
                 </tr>
                 {% endfor %}

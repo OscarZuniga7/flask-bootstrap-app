@@ -28,8 +28,8 @@ def add_post():
     cursor.execute("INSERT INTO posts (title, content) VALUES (?, ?)", (title, content))
     connection.commit()
     connection.close()
-    print("Publicación agregada con éxito, redirigiendo a /crud")
     return redirect(url_for('crud_index'))
+
 
 
 # Ruta para eliminar una publicación
