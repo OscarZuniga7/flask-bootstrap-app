@@ -28,9 +28,8 @@ def add_post():
     cursor.execute("INSERT INTO posts (title, content) VALUES (?, ?)", (title, content))
     connection.commit()
     connection.close()
-    # Modificar la URL generada por `url_for` para evitar el puerto
-    redirect_url = url_for('crud_index', _external=True).replace(':5000', '')
-    return redirect(redirect_url)
+    # Redirigir a la URL completa sin el puerto
+    return redirect('https://fuzzy-couscous-jjjg999qxrj3pv9q-5000.app.github.dev/crud')
     #return redirect(url_for('crud_index'))
 
 
