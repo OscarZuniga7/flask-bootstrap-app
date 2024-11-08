@@ -28,9 +28,9 @@ def add_post():
     cursor.execute("INSERT INTO posts (title, content) VALUES (?, ?)", (title, content))
     connection.commit()
     connection.close()
-    # Redirigir a la URL completa sin el puerto
-    return redirect('https://fuzzy-couscous-jjjg999qxrj3pv9q-5000.app.github.dev/crud')
-    #return redirect(url_for('crud_index'))
+    # Redirigir manualmente a la URL sin puerto
+    base_url = 'https://fuzzy-couscous-jjjg999qxrj3pv9q-5000.app.github.dev'
+    return redirect(f"{base_url}/crud")
 
 
 
