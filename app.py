@@ -1,12 +1,18 @@
-from flask import Flask, render_template, request, redirect, url_for
+import os
 import sqlite3
 
+from flask import Flask, render_template, request, redirect, url_for
+
+from init_db import init_database
+
 app = Flask(__name__)
+DATABASE_PATH = os.environ.get('DATABASE_PATH', 'database.db')
+init_database(DATABASE_PATH)
 
 # Ruta para mostrar la página principal (index.html)
 @app.route('/')
 def index():
-    connection = sqlite3.connect('database.db')
+    connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
     cursor.execute("SELECT * FROM posts")
     posts = cursor.fetchall()
@@ -18,7 +24,7 @@ def index():
 def add_post():
     title = request.form['title']
     content = request.form['content']
-    connection = sqlite3.connect('database.db')
+    connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
     cursor.execute("INSERT INTO posts (title, content) VALUES (?, ?)", (title, content))
     connection.commit()
@@ -29,7 +35,7 @@ def add_post():
 
 @app.route('/delete_post/<int:post_id>', methods=['POST'])
 def delete_post(post_id):
-    connection = sqlite3.connect('database.db')
+    connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
     cursor.execute("DELETE FROM posts WHERE id = ?", (post_id,))
     connection.commit()
