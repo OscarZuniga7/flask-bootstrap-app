@@ -654,3 +654,313 @@ pip install -r requirements.txt
 ```bash
 python app.py
 ```
+
+---
+
+# Semana 2: ejecución reproducible con Docker
+
+En la Semana 1 ejecutamos la aplicación directamente en el computador con Python:
+
+```bash
+python app.py
+```
+
+En la Semana 2 aprenderemos una alternativa: ejecutar la **misma aplicación Flask + SQLite** dentro de un contenedor usando Docker Compose. No estamos diciendo que Docker sea “mejor” en todos los casos. Lo usaremos porque permite practicar una idea muy importante en ingeniería: construir un entorno de ejecución reproducible, aislado y fácil de compartir.
+
+## 1. Ideas básicas antes de usar comandos Docker
+
+### ¿Qué problema resuelve Docker?
+
+Cuando una aplicación funciona en un computador pero falla en otro, muchas veces el problema no está en el código, sino en el entorno: versión de Python, librerías instaladas, variables de entorno o rutas de archivos.
+
+Docker ayuda a resolver ese problema empaquetando la aplicación con un entorno conocido. En vez de pedir a cada estudiante que configure exactamente igual su computador, el proyecto describe cómo debe ser el entorno en archivos como `Dockerfile` y `docker-compose.yml`.
+
+### ¿Qué es Docker?
+
+Docker es una herramienta para construir y ejecutar aplicaciones dentro de **contenedores**. Un contenedor es un ambiente aislado donde la aplicación ve sus propios archivos, dependencias y configuración.
+
+En este proyecto, Docker ejecutará Flask dentro de un contenedor, pero la aplicación seguirá usando SQLite y la tabla `posts`.
+
+### ¿Qué es Docker Desktop?
+
+Docker Desktop es la aplicación que instala Docker en Windows 10/11 y macOS. En Windows, normalmente también configura los componentes necesarios para que Docker pueda ejecutar contenedores Linux.
+
+Para estudiantes que usan Windows, Docker Desktop es la forma recomendada de empezar.
+
+### ¿Qué es una imagen?
+
+Una imagen Docker es una plantilla para crear contenedores. Puedes imaginarla como una receta congelada: contiene instrucciones y archivos necesarios para crear un ambiente de ejecución.
+
+En este proyecto, la imagen se construye a partir del `Dockerfile`: parte de Python, instala Flask desde `requirements.txt` y copia el código de la aplicación.
+
+### ¿Qué es un contenedor?
+
+Un contenedor es una ejecución concreta de una imagen. Si la imagen es la receta, el contenedor es el plato preparado y funcionando.
+
+Cuando levantamos el proyecto, el contenedor ejecuta:
+
+```bash
+python app.py
+```
+
+pero lo hace dentro del ambiente definido por Docker.
+
+### ¿Qué es Dockerfile?
+
+`Dockerfile` es el archivo que explica cómo construir la imagen de la aplicación. Indica, por ejemplo:
+
+- qué versión base de Python usar;
+- dónde estará la aplicación dentro del contenedor;
+- cómo instalar las dependencias;
+- qué comando iniciar al arrancar el contenedor.
+
+### ¿Qué es docker-compose.yml?
+
+`docker-compose.yml` es un archivo de configuración para Docker Compose. En vez de escribir un comando Docker largo, Compose permite describir el servicio de la aplicación de forma legible.
+
+En esta semana usamos un único servicio: `flask_app`.
+
+### ¿Qué es un puerto?
+
+Un puerto es como una puerta numerada por donde entran conexiones de red. Flask escucha dentro del contenedor en el puerto `5000`. Para abrir la aplicación desde el navegador del computador, publicamos ese puerto también como `5000` en el equipo anfitrión.
+
+Por eso accederemos a:
+
+```text
+http://localhost:5000
+```
+
+### ¿Qué significa persistencia?
+
+Persistencia significa conservar datos aunque el programa se detenga. SQLite guarda la información en un archivo llamado `database.db`. Si ese archivo vive solo dentro del contenedor, puede perderse al recrearlo.
+
+### ¿Qué es un volumen?
+
+Un volumen Docker es almacenamiento administrado por Docker para conservar datos fuera del ciclo de vida normal del contenedor.
+
+### ¿Qué es un bind mount?
+
+Un bind mount es un mecanismo distinto: conecta una carpeta visible del computador con una carpeta vista dentro del contenedor. Ambos mecanismos pueden ayudar a conservar o compartir datos, pero en este proyecto de Semana 2 usamos específicamente un **bind mount**.
+
+Aunque `docker-compose.yml` usa la sección `volumes:`, la línea siguiente representa un bind mount:
+
+```text
+./data  ->  /app/data
+```
+
+`./data` corresponde a una carpeta visible del computador del estudiante. `/app/data` corresponde a la carpeta que ve Flask dentro del contenedor. La base SQLite del contenedor se guarda en `/app/data/database.db`, que corresponde a `data/database.db` en tu carpeta del proyecto. Ese archivo permanece en el computador aunque el contenedor se destruya y vuelva a crearse.
+
+El repositorio incluye `data/.gitkeep` porque Git normalmente no conserva carpetas vacías. Ese pequeño archivo permite que la carpeta `data` exista después de clonar el proyecto. En condiciones normales no necesitas crearla manualmente: al ejecutar por primera vez la aplicación con Docker se creará `data/database.db`, y ese archivo no se versionará porque está incluido en `.gitignore`.
+
+Flujo de la Semana 2:
+
+```text
+Navegador
+    ↓
+Contenedor Flask
+    ↓
+SQLite
+    ↓
+Almacenamiento persistente en ./data/database.db
+```
+
+## 2. Preparación del computador en Windows 10/11
+
+### Paso 1: consultar requisitos generales
+
+Antes de instalar Docker Desktop, consulta la documentación oficial de Docker Desktop para Windows y sigue los requisitos e instrucciones vigentes de instalación. Según la configuración del equipo, Docker Desktop puede solicitar WSL 2, virtualización u otros componentes.
+
+Como comprobación sencilla, asegúrate de contar con permisos para instalar programas, conexión a internet y espacio libre suficiente en disco.
+
+### Paso 2: instalar Docker Desktop desde la fuente oficial
+
+1. Abre el navegador.
+2. Entra a <https://www.docker.com/products/docker-desktop/>.
+3. Descarga Docker Desktop para Windows.
+4. Ejecuta el instalador.
+5. Acepta las opciones recomendadas por Docker Desktop si aparece alguna solicitud adicional.
+6. Reinicia el computador si el instalador lo solicita.
+
+### Paso 3: iniciar Docker Desktop
+
+1. Abre el menú Inicio.
+2. Busca **Docker Desktop**.
+3. Inicia la aplicación.
+4. Espera hasta que indique que Docker está funcionando.
+
+No basta con tener Docker instalado: Docker Desktop debe estar abierto para que los comandos funcionen.
+
+### Paso 4: comprobar Docker desde la terminal
+
+Abre PowerShell o la terminal integrada de VS Code en la carpeta del proyecto.
+
+Primero comprobamos que el comando `docker` existe:
+
+```bash
+docker --version
+```
+
+Luego comprobamos que Docker Compose está disponible:
+
+```bash
+docker compose version
+```
+
+Si ambos comandos muestran una versión, el computador está listo para continuar.
+
+## 3. Ejecución guiada con Docker Compose
+
+Asegúrate de estar en la carpeta raíz del proyecto, donde están `Dockerfile` y `docker-compose.yml`.
+
+### Construir y levantar la aplicación
+
+Antes de ejecutar el comando, piensa qué necesitamos: Docker debe leer el `Dockerfile`, construir una imagen y crear un contenedor para Flask.
+
+```bash
+docker compose up --build -d
+```
+
+Qué hace:
+
+- `docker compose up` crea e inicia los servicios definidos en `docker-compose.yml`;
+- `--build` reconstruye la imagen si hubo cambios;
+- `-d` deja el contenedor ejecutándose en segundo plano.
+
+Qué deberías observar:
+
+- mensajes de construcción de imagen la primera vez;
+- creación del servicio `flask_app`;
+- la terminal queda disponible al finalizar.
+
+Cómo saber si funcionó: ejecuta el comando de estado.
+
+```bash
+docker compose ps
+```
+
+Deberías ver el servicio `flask_app` en estado `running` o `Up`, y el puerto `5000` publicado.
+
+### Ver logs
+
+Los logs son los mensajes que imprime la aplicación. Sirven para investigar qué ocurrió dentro del contenedor.
+
+```bash
+docker compose logs
+```
+
+Qué deberías observar:
+
+- mensajes de Flask;
+- una línea indicando que la aplicación escucha en `0.0.0.0:5000`;
+- si la base no existía, se crea automáticamente antes de atender solicitudes.
+
+### Abrir la aplicación
+
+Abre el navegador y entra a:
+
+```text
+http://localhost:5000
+```
+
+Si ves la página de publicaciones, la aplicación funciona dentro del contenedor.
+
+### Detener la aplicación
+
+Cuando quieras detener los contenedores de esta semana, usa:
+
+```bash
+docker compose down
+```
+
+Qué hace:
+
+- detiene el contenedor;
+- elimina el contenedor creado por Compose;
+- conserva los archivos del proyecto, incluida la carpeta `data` que contiene la base persistente.
+
+## 4. Actividad guiada: comprobar persistencia
+
+Objetivo: demostrar que SQLite necesita almacenamiento persistente para conservar datos.
+
+1. Inicia la aplicación:
+
+   ```bash
+   docker compose up --build -d
+   ```
+
+2. Abre `http://localhost:5000`.
+3. Crea una publicación con un título fácil de reconocer, por ejemplo `Prueba de persistencia`.
+4. Comprueba que aparece en la lista.
+5. Detén la aplicación:
+
+   ```bash
+   docker compose down
+   ```
+
+6. Vuelve a iniciarla:
+
+   ```bash
+   docker compose up --build -d
+   ```
+
+7. Abre nuevamente `http://localhost:5000`.
+8. Comprueba que la publicación continúa existiendo.
+
+¿Por qué ocurre? Porque `docker-compose.yml` conecta la carpeta `./data` del proyecto con `/app/data` dentro del contenedor. La aplicación usa la variable `DATABASE_PATH=/app/data/database.db`, por lo que SQLite escribe la base en una carpeta persistente del computador.
+
+## 5. Comparación didáctica Semana 1 vs Semana 2
+
+| Aspecto | Semana 1: `python app.py` | Semana 2: `docker compose up --build -d` |
+|---|---|---|
+| Dónde se ejecuta Flask | Directamente en tu computador | Dentro de un contenedor |
+| Dependencias | Se instalan en un entorno virtual local | Se instalan dentro de la imagen Docker |
+| Entorno virtual | Lo creas y activas manualmente | No lo activas en tu terminal; la imagen contiene las dependencias |
+| Reproducibilidad | Depende más de la configuración del computador | El entorno queda descrito en `Dockerfile` y `docker-compose.yml` |
+| Aislamiento | Menor aislamiento | Mayor aislamiento respecto al sistema anfitrión |
+| Persistencia SQLite | `database.db` queda en la carpeta del proyecto | `data/database.db` queda fuera del contenedor mediante bind mount |
+
+## 6. Problemas frecuentes
+
+### `docker` no se reconoce
+
+Significa que Docker no está instalado o no quedó agregado al PATH. Instala Docker Desktop desde la página oficial, reinicia la terminal y prueba nuevamente `docker --version`.
+
+### Docker Desktop no está iniciado
+
+Si el comando existe pero no puede conectarse al motor de Docker, abre Docker Desktop y espera a que termine de iniciar.
+
+### `docker compose` no funciona
+
+Comprueba:
+
+```bash
+docker compose version
+```
+
+Si falla, revisa que Docker Desktop esté actualizado. En instalaciones antiguas existía `docker-compose` con guion, pero en este curso usaremos `docker compose`.
+
+### El puerto ya está ocupado
+
+Si otro programa usa el puerto `5000`, Docker no podrá publicarlo. Cierra el otro programa o cambia temporalmente el puerto izquierdo en `docker-compose.yml`, por ejemplo `5001:5000`, y entra a `http://localhost:5001`.
+
+### El contenedor se detiene inesperadamente
+
+Consulta los logs:
+
+```bash
+docker compose logs
+```
+
+Busca errores de Python, Flask, permisos o rutas de archivos.
+
+### `database.db` no se crea
+
+Recuerda que el repositorio incluye `data/.gitkeep`, por lo que la carpeta `data` debería existir después de clonar correctamente. Confirma que `DATABASE_PATH` apunte a `/app/data/database.db`, que el bind mount sea `./data:/app/data` y que tengas permisos de escritura en la carpeta del proyecto.
+
+### Los datos desaparecen después de recrear el contenedor
+
+Verifica que no hayas eliminado la carpeta `data`. La persistencia depende de que `data/database.db` permanezca en el computador.
+
+## 7. Más detalle
+
+La guía completa de la Semana 2 está en [`docs/Semana02.md`](docs/Semana02.md).
