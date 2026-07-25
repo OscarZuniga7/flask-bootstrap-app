@@ -964,3 +964,171 @@ Verifica que no hayas eliminado la carpeta `data`. La persistencia depende de qu
 ## 7. Más detalle
 
 La guía completa de la Semana 2 está en [`docs/Semana02.md`](docs/Semana02.md).
+
+---
+
+# Semana 3: conexión Flask-MySQL con Docker Compose
+
+> Esta sección continúa las Semanas 1 y 2. En esta semana se usa Docker Compose; no ejecutes `python app.py` directamente, porque la aplicación necesita el servidor MySQL del segundo contenedor.
+
+## 1. ¿Qué cambia respecto de Semana 2?
+
+La pantalla y las acciones siguen siendo las mismas: listar, crear y eliminar **publicaciones**. Cambia el lugar donde se guardan. En Semana 2 Flask usaba SQLite y un archivo `database.db`; ahora Flask se conecta a MySQL mediante `mysql-connector-python`.
+
+```text
+Semana 2: navegador → Flask → SQLite → archivo database.db
+Semana 3: navegador → web (Flask) → db (MySQL) → volumen mysql_data
+```
+
+MySQL es un **servidor de base de datos**: un programa independiente que recibe conexiones y consultas SQL. SQLite, en cambio, lee y escribe directamente un archivo desde la aplicación. `database.db` puede permanecer como recuerdo de semanas anteriores, pero ya no es la base activa de Semana 3.
+
+## 2. Dos servicios: `web` y `db`
+
+En Docker Compose, un **servicio** describe una parte de la aplicación que se ejecutará en su propio contenedor.
+
+- `web` construye y ejecuta Flask, recibe al navegador en el puerto `5000` y envía SQL a MySQL.
+- `db` ejecuta MySQL 8.4, guarda las publicaciones y solo es accesible por `web` dentro de Compose. No publicamos el puerto 3306 hacia Windows porque no hace falta para esta actividad.
+
+Separarlos permite observar que Flask y la base de datos son programas distintos, aunque colaboran.
+
+## 3. Variables de entorno y credenciales
+
+Una **variable de entorno** es un valor que se entrega a un programa desde fuera de su código. En este proyecto son `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` y `MYSQL_ROOT_PASSWORD`. Así no escribimos credenciales directamente en `app.py` y podemos cambiar la configuración sin modificar Python.
+
+- `.env.example` es una plantilla con valores didácticos, sin secretos reales; sí se versiona para enseñar qué variables hacen falta.
+- `.env` es tu copia local. Puede contener tus contraseñas, está incluido en `.gitignore` y **no debe subirse a GitHub**.
+
+### Crear `.env` en Windows 10/11
+
+1. Abre la carpeta del proyecto en VS Code.
+2. Abre **Terminal > New Terminal**. Comprueba que la terminal está ubicada en la carpeta del proyecto.
+3. En PowerShell ejecuta:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Si la terminal muestra `cmd` en vez de PowerShell, usa:
+
+```bat
+copy .env.example .env
+```
+
+4. Abre `.env` desde el explorador de archivos de VS Code. Cambia los textos `cambia_esta_clave` y `cambia_esta_clave_root` por claves solo para tu entorno de clase. No agregues espacios alrededor de `=`.
+5. Guarda el archivo. Nunca ejecutes `git add .env`.
+
+## 4. ¿Por qué `DB_HOST=db` y no `localhost`?
+
+Docker Compose permite que un servicio encuentre a otro usando su nombre. La conexión es:
+
+```text
+web → db:3306
+```
+
+Por eso Flask usa `DB_HOST=db` y el puerto interno `3306`. Dentro del contenedor `web`, `localhost` significa “este mismo contenedor web”; no significa el contenedor MySQL. Como MySQL vive en el servicio `db`, usar `localhost` buscaría MySQL en el lugar equivocado.
+
+## 5. Inicialización de MySQL
+
+Compose monta `database/init.sql` en `/docker-entrypoint-initdb.d/init.sql`. La imagen oficial de MySQL ejecuta automáticamente los scripts de ese directorio **cuando inicializa por primera vez un volumen de datos vacío**. El script crea `posts` (`id`, `title`, `content`) e inserta tres ejemplos.
+
+No es un sistema de migraciones. Si se modifica `init.sql` después de que `mysql_data` ya fue inicializado, reiniciar los contenedores normalmente no vuelve a ejecutar el script.
+
+Las consultas `INSERT` y `DELETE` de `app.py` usan parámetros (`%s`). El conector envía los valores separados del SQL; esto evita formar instrucciones concatenando texto escrito por el usuario y reduce el riesgo de inyección SQL.
+
+## 6. Volumen nombrado `mysql_data`
+
+En Semana 2, `./data:/app/data` era un **bind mount**: una carpeta visible del proyecto se enlazaba al contenedor para guardar el archivo SQLite. Ahora `mysql_data` es un **volumen nombrado administrado por Docker**: Docker decide su ubicación y MySQL guarda allí sus archivos internos.
+
+```bash
+docker compose down
+```
+
+Este comando elimina los contenedores, pero conserva `mysql_data` y las publicaciones.
+
+> **Advertencia:** `docker compose down -v` también elimina los volúmenes asociados y puede borrar todos los datos MySQL de este proyecto. No uses `-v` durante la actividad normal de persistencia.
+
+## 7. Healthcheck
+
+Que el contenedor MySQL esté iniciado no significa necesariamente que MySQL ya esté listo para recibir conexiones. El `healthcheck` ejecuta una comprobación sencilla con `mysqladmin ping`. `web` tiene `depends_on` con `condition: service_healthy`, por lo que Compose espera a que `db` esté saludable antes de iniciar Flask.
+
+## 8. Construir y ejecutar paso a paso
+
+Antes de comenzar, abre Docker Desktop y espera a que indique que está funcionando. Luego usa la terminal integrada de VS Code en la carpeta del proyecto.
+
+1. Crea `.env` como se explicó antes.
+2. Comprueba la configuración combinada (no inicia contenedores):
+
+```bash
+docker compose config
+```
+
+3. Construye la imagen de Flask e inicia ambos servicios en segundo plano:
+
+```bash
+docker compose up --build -d
+```
+
+4. Comprueba los contenedores:
+
+```bash
+docker compose ps
+```
+
+Deben aparecer `web` y `db`; `db` debe llegar a estado `healthy`.
+
+5. Revisa los logs de ambos servicios:
+
+```bash
+docker compose logs
+```
+
+Para observarlos mientras se generan:
+
+```bash
+docker compose logs -f
+```
+
+Pulsa `Ctrl+C` para dejar de seguir los logs; los contenedores continúan ejecutándose.
+
+6. Abre <http://localhost:5000>. Completa título y contenido y pulsa **Agregar**. Para borrar una fila, pulsa su botón **Eliminar**. Ambas acciones llegan a Flask y ejecutan SQL parametrizado en MySQL.
+
+7. Detén y elimina los contenedores sin borrar los datos:
+
+```bash
+docker compose down
+```
+
+## 9. Comprobar la persistencia
+
+1. Crea una publicación fácil de reconocer en el navegador.
+2. Ejecuta `docker compose down` (sin `-v`).
+3. Inicia nuevamente:
+
+```bash
+docker compose up -d
+```
+
+4. Espera a que `docker compose ps` muestre `db` saludable y recarga <http://localhost:5000>. La publicación continúa porque `mysql_data` no fue eliminado.
+
+## 10. Problemas frecuentes
+
+- **“no configuration file”**: abre en VS Code la carpeta que contiene `docker-compose.yml` y ejecuta allí los comandos.
+- **Falta `.env` o una variable está vacía**: crea `.env` desde `.env.example`, guarda el archivo y revisa la escritura de los seis nombres.
+- **Access denied**: las credenciales del volumen se establecieron la primera vez. Revisa que `DB_USER` y `DB_PASSWORD` coincidan con los usados al crear ese volumen; no borres el volumen sin autorización del docente.
+- **Unknown MySQL server host o conexión rechazada**: confirma `DB_HOST=db`, no `localhost`, y consulta `docker compose ps` y `docker compose logs db`.
+- **La web aún no abre**: MySQL puede estar iniciándose. Espera a que `db` indique `healthy` y revisa `docker compose logs web`.
+- **Los ejemplos nuevos de `init.sql` no aparecen**: el script solo se ejecuta normalmente al inicializar un volumen vacío; un reinicio no reinicializa datos existentes.
+- **El puerto 5000 está ocupado**: detén otra aplicación que use ese puerto y repite el comando.
+
+## 11. Comparación didáctica
+
+| Concepto | Semana 2 | Semana 3 |
+|---|---|---|
+| Motor | SQLite | MySQL |
+| Base de datos | archivo local | servidor de base de datos |
+| Servicios | 1 | 2 (`web` y `db`) |
+| Persistencia | bind mount | volumen Docker nombrado |
+| Host de BD | archivo local | `db` |
+| Puerto interno MySQL | no aplica | `3306` |
+
+La interfaz casi no cambia. El cambio central de esta semana es comprender el recorrido **Flask ↔ MySQL** y la comunicación **web ↔ db**.
