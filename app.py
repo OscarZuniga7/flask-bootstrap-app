@@ -1,20 +1,29 @@
 import os
-import sqlite3
 
 from flask import Flask, render_template, request, redirect, url_for
-
-from init_db import init_database
+import mysql.connector
 
 app = Flask(__name__)
-DATABASE_PATH = os.environ.get('DATABASE_PATH', 'database.db')
-init_database(DATABASE_PATH)
+
+
+def get_db_connection():
+    """Crea una conexión al servidor MySQL usando el entorno del contenedor."""
+    return mysql.connector.connect(
+        host=os.environ["DB_HOST"],
+        port=int(os.environ["DB_PORT"]),
+        database=os.environ["DB_NAME"],
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        charset="utf8mb4",
+        collation="utf8mb4_0900_ai_ci",
+    )
 
 # Ruta para mostrar la página principal (index.html)
 @app.route('/')
 def index():
-    connection = sqlite3.connect(DATABASE_PATH)
+    connection = get_db_connection()
     cursor = connection.cursor()
-    cursor.execute("SELECT * FROM posts")
+    cursor.execute("SELECT id, title, content FROM posts ORDER BY id")
     posts = cursor.fetchall()
     connection.close()
     return render_template('index.html', posts=posts)
@@ -24,9 +33,12 @@ def index():
 def add_post():
     title = request.form['title']
     content = request.form['content']
-    connection = sqlite3.connect(DATABASE_PATH)
+    connection = get_db_connection()
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO posts (title, content) VALUES (?, ?)", (title, content))
+    cursor.execute(
+        "INSERT INTO posts (title, content) VALUES (%s, %s)",
+        (title, content),
+    )
     connection.commit()
     connection.close()
     
@@ -35,9 +47,9 @@ def add_post():
 
 @app.route('/delete_post/<int:post_id>', methods=['POST'])
 def delete_post(post_id):
-    connection = sqlite3.connect(DATABASE_PATH)
+    connection = get_db_connection()
     cursor = connection.cursor()
-    cursor.execute("DELETE FROM posts WHERE id = ?", (post_id,))
+    cursor.execute("DELETE FROM posts WHERE id = %s", (post_id,))
     connection.commit()
     connection.close()
     return redirect(url_for('index'))
