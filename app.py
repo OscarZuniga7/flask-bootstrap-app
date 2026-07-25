@@ -14,6 +14,8 @@ def get_db_connection():
         database=os.environ["DB_NAME"],
         user=os.environ["DB_USER"],
         password=os.environ["DB_PASSWORD"],
+        charset="utf8mb4",
+        collation="utf8mb4_0900_ai_ci",
     )
 
 # Ruta para mostrar la página principal (index.html)

@@ -44,6 +44,28 @@ El healthcheck pregunta mediante `mysqladmin ping` si MySQL responde. Que el con
 
 Las consultas que agregan y borran usan parámetros. Los datos escritos por el usuario se entregan aparte del texto SQL, en vez de concatenarlos, para reducir el riesgo de inyección SQL.
 
+### Codificación de caracteres y español
+
+Una **codificación de caracteres** es una regla que relaciona los caracteres que vemos con los números que guarda el computador. En este proyecto indicamos explícitamente `utf8mb4` tanto al servidor MySQL, como a la tabla y a la conexión de Python. Es una codificación moderna de Unicode que representa correctamente letras acentuadas, la `ñ` y muchos otros símbolos.
+
+Todos los componentes deben interpretar los bytes con la misma codificación. Si un texto UTF-8 se interpreta por error usando otra codificación, `publicación` puede mostrarse como `publicaciÃ³n`, aunque la intención original fuera correcta.
+
+#### Volver a ejecutar `database/init.sql` en el entorno de prueba
+
+MySQL ejecuta `database/init.sql` solamente al inicializar un volumen vacío. Si `mysql_data` ya existe, aplicar esta corrección y reiniciar no modifica automáticamente los registros anteriores. **En un entorno local de prueba donde se pueden perder todas las publicaciones**, ejecuta:
+
+```bash
+docker compose down -v
+```
+
+La opción `-v` elimina el volumen `mysql_data` y todos sus datos. No la uses sobre datos que necesites conservar ni durante la actividad normal de persistencia. Después, crea nuevamente los contenedores y el volumen vacío:
+
+```bash
+docker compose up --build -d
+```
+
+MySQL volverá a ejecutar `database/init.sql`. Cuando `docker compose ps` muestre `db` como saludable, abre <http://localhost:5000> y comprueba que `publicación`, `conexión`, `aplicación` e `información` se vean correctamente.
+
 ## Actividad guiada: PREDICCIÓN → EJECUCIÓN → OBSERVACIÓN → EXPLICACIÓN
 
 ### 1. PREDICCIÓN
