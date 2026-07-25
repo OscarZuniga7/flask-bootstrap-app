@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template
 import mysql.connector
 
 app = Flask(__name__)
@@ -18,41 +18,24 @@ def get_db_connection():
         collation="utf8mb4_0900_ai_ci",
     )
 
-# Ruta para mostrar la página principal (index.html)
-@app.route('/')
+
+# Esta semana la aplicación solo consulta y muestra estudiantes.
+@app.route("/")
 def index():
     connection = get_db_connection()
     cursor = connection.cursor()
-    cursor.execute("SELECT id, title, content FROM posts ORDER BY id")
-    posts = cursor.fetchall()
-    connection.close()
-    return render_template('index.html', posts=posts)
-
-# Ruta para agregar una nueva publicación
-@app.route('/add_post', methods=['POST'])
-def add_post():
-    title = request.form['title']
-    content = request.form['content']
-    connection = get_db_connection()
-    cursor = connection.cursor()
     cursor.execute(
-        "INSERT INTO posts (title, content) VALUES (%s, %s)",
-        (title, content),
+        """
+        SELECT id_estudiante, rut, nombre, email, carrera, fecha_ingreso
+        FROM estudiantes
+        ORDER BY id_estudiante
+        """
     )
-    connection.commit()
+    estudiantes = cursor.fetchall()
+    cursor.close()
     connection.close()
-    
-    # Redirigir a la ruta principal
-    return redirect(url_for('index'))
+    return render_template("index.html", estudiantes=estudiantes)
 
-@app.route('/delete_post/<int:post_id>', methods=['POST'])
-def delete_post(post_id):
-    connection = get_db_connection()
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM posts WHERE id = %s", (post_id,))
-    connection.commit()
-    connection.close()
-    return redirect(url_for('index'))
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0")

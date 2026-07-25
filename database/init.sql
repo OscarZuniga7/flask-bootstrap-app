@@ -1,13 +1,20 @@
 -- Interpretamos este archivo como UTF-8 antes de crear o insertar datos.
 SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS posts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(200) NOT NULL,
-    content TEXT NOT NULL
+-- ESTUDIANTE se transforma en una tabla; cada columna representa un atributo.
+CREATE TABLE IF NOT EXISTS estudiantes (
+    id_estudiante INT AUTO_INCREMENT PRIMARY KEY,
+    rut VARCHAR(15) NOT NULL UNIQUE,
+    nombre VARCHAR(100) NOT NULL,
+    email VARCHAR(120) NOT NULL UNIQUE,
+    carrera VARCHAR(100) NOT NULL,
+    fecha_ingreso DATE NULL
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-INSERT INTO posts (title, content) VALUES
-    ('Primera publicación', 'Este registro fue creado al inicializar MySQL.'),
-    ('Aprendiendo MySQL', 'Ahora los datos viven en un servidor de base de datos.'),
-    ('Flask conectado a una base de datos', 'El servicio web se comunica con el servicio db.');
+-- Datos completamente ficticios para la actividad de laboratorio.
+INSERT INTO estudiantes (rut, nombre, email, carrera, fecha_ingreso) VALUES
+    ('11.111.111-1', 'Ana Muñoz', 'ana.munoz@example.com', 'Ingeniería Informática', '2026-03-02'),
+    ('12.222.222-2', 'José Pérez', 'jose.perez@example.com', 'Administración Pública', '2026-03-02'),
+    ('13.333.333-3', 'María Núñez', 'maria.nunez@example.com', 'Diseño', '2025-03-03'),
+    ('14.444.444-4', 'Tomás Peña', 'tomas.pena@example.com', 'Contabilidad', NULL),
+    ('15.555.555-5', 'Sofía González', 'sofia.gonzalez@example.com', 'Ingeniería Comercial', '2026-03-02');
