@@ -1132,3 +1132,129 @@ docker compose up -d
 | Puerto interno MySQL | no aplica | `3306` |
 
 La interfaz casi no cambia. El cambio central de esta semana es comprender el recorrido **Flask ↔ MySQL** y la comunicación **web ↔ db**.
+
+# Semana 4: primera entidad del sistema académico
+
+## 1. El problema que resolvemos y lo que permanece igual
+
+En la Semana 3 usamos `posts` como dominio genérico para comprobar la conexión. En la Semana 4 comenzamos un dominio académico real: reemplazamos **publicaciones** por **estudiantes**. No estamos construyendo un CRUD (*Create, Read, Update, Delete*; en español, **Crear, Leer/Consultar, Actualizar y Eliminar**). Esta semana implementamos únicamente la **R de Read**, es decir, consultar; todavía no implementamos C, U ni D. Queremos observar cómo una idea del modelo conceptual llega a ser una tabla consultable.
+
+La arquitectura no cambia:
+
+```text
+Navegador → web (Flask) → db (MySQL 8.4) → mysql_data
+```
+
+También conservamos Docker Compose, las variables de entorno, el *healthcheck*, `mysql-connector-python`, el puerto 5000 y `utf8mb4`.
+
+## 2. Entidad, atributos y dominios
+
+Una **entidad** es algo del mundo que nos interesa representar. `ESTUDIANTE` es una entidad porque necesitamos guardar y distinguir estudiantes. Sus características, como nombre o carrera, son **atributos**. Al transformarla en una tabla, cada atributo se representa mediante una columna y cada estudiante mediante una fila.
+
+El **dominio de un atributo** indica qué valores son válidos. Aquí usamos `INT` para un identificador numérico, `VARCHAR` para textos de longitud variable y `DATE` para una fecha. Además del tipo, restricciones como `NOT NULL` y `UNIQUE` forman parte de las reglas que limitan esos valores.
+
+### Tipos de atributos que podemos reconocer
+
+Al pensar en `ESTUDIANTE` también podemos clasificar los atributos. Un **atributo clave**, como `rut`, puede identificar al estudiante en el mundo real. Un **atributo simple**, como `email`, `carrera` o `fecha_ingreso`, se trata como un valor indivisible para los objetivos actuales.
+
+Un **atributo compuesto** puede dividirse en partes con significado propio. Por ejemplo, el nombre completo `"María Elena González Soto"` podría modelarse como `nombres = "María Elena"`, `apellido_paterno = "González"` y `apellido_materno = "Soto"`. En Semana 4 conservamos `nombre VARCHAR(100)` por simplicidad pedagógica; es una decisión de modelamiento que podría refinarse después.
+
+Un **atributo derivado** se puede calcular desde otros datos. No almacenamos `años_cursados`: si `fecha_ingreso = 2024-03-01`, los años transcurridos pueden calcularse en una fecha posterior. Si un dato puede obtenerse de manera confiable a partir de otros datos, a veces conviene calcularlo en vez de almacenarlo. Existen razones específicas para almacenar ciertos datos derivados, pero todavía no las estudiaremos.
+
+Un **atributo multivaluado** puede tener varios valores para una entidad. `telefonos` podría incluir un teléfono personal, uno de emergencia y otro adicional. Guardarlos juntos en una sola columna dificultaría distinguirlos y consultarlos. **En Semana 4 no implementaremos todavía atributos multivaluados**; más adelante, estos casos normalmente conducen a nuevas tablas y relaciones.
+
+| Tipo de atributo | Ejemplo en ESTUDIANTE | ¿Se almacena en Semana 4? |
+| --- | --- | --- |
+| Clave | `rut` | Sí |
+| Sustituto | `id_estudiante` | Sí |
+| Simple | `email` | Sí |
+| Compuesto | `nombre` → nombres + apellidos | Por ahora se almacena como `nombre` |
+| Derivado | `años_cursados` | No |
+| Multivaluado | `teléfonos` | No |
+
+La tabla resume decisiones pedagógicas del modelo actual; no agrega columnas ni tablas a la implementación.
+
+## 3. Del modelo conceptual al modelo relacional
+
+Primero expresamos la idea sin pensar aún en detalles de MySQL:
+
+```text
+ESTUDIANTE
+- rut
+- nombre
+- email
+- carrera
+- fecha_ingreso
+```
+
+Luego la convertimos al modelo relacional:
+
+```text
+ESTUDIANTES(
+    id_estudiante PK,
+    rut UNIQUE NOT NULL,
+    nombre NOT NULL,
+    email UNIQUE NOT NULL,
+    carrera NOT NULL,
+    fecha_ingreso
+)
+```
+
+En el **modelo conceptual** pensamos en la realidad y analizamos qué significa y de qué tipo es cada atributo. En el **modelo relacional** decidimos cómo representarlo mediante tablas, columnas, tipos y restricciones. La transformación no siempre es una copia literal: podemos agregar una clave sustituta, dividir un atributo compuesto, no almacenar un atributo derivado o reconocer que un atributo multivaluado necesitará otra tabla. Esta semana solo agregamos `id_estudiante`; no dividimos `nombre` ni implementamos nuevas tablas o relaciones.
+
+La **clave primaria** (`PRIMARY KEY`) identifica sin ambigüedad cada fila. Una **clave candidata** es un atributo, o conjunto mínimo de atributos, que podría identificar de forma única una entidad. En este ejemplo, `rut` puede considerarse una clave candidata y natural, mientras que `id_estudiante` es la candidata elegida como clave primaria.
+
+Una **clave natural** ya existe en el mundo real: por ejemplo, `rut = "12.345.678-9"`. Una **clave sustituta** es creada especialmente por el sistema: por ejemplo, `id_estudiante = 27`. `AUTO_INCREMENT` permite que MySQL genere ese identificador automáticamente.
+
+```text
+Estudiante A: id_estudiante = 1, rut = 11.111.111-1
+Estudiante B: id_estudiante = 2, rut = 22.222.222-2
+```
+
+Ambos valores pueden identificar al estudiante, pero cumplen roles distintos. Usamos `id_estudiante` como `PRIMARY KEY` porque es pequeña, estable, no depende de datos del mundo real, facilita futuras relaciones y evita que un cambio administrativo del RUT afecte muchas referencias. Mantenemos `rut UNIQUE` para impedir que dos filas representen el mismo RUT. `email UNIQUE` aplica la misma regla al correo. `rut`, `nombre`, `email` y `carrera` usan `NOT NULL` porque son obligatorios. `fecha_ingreso` es opcional y puede contener `NULL`, es decir, un valor todavía desconocido o no registrado. `NULL` no es una cadena vacía.
+
+Como existe una sola entidad, esta semana no necesitamos claves foráneas ni relaciones.
+
+## 4. La tabla implementada
+
+El problema ahora es expresar esas decisiones como SQL. `VARCHAR(n)` admite texto hasta la longitud indicada; `INT` representa enteros y `DATE` guarda fechas, no texto libre. Este es el código de `database/init.sql`:
+
+```sql
+CREATE TABLE IF NOT EXISTS estudiantes (
+    id_estudiante INT AUTO_INCREMENT PRIMARY KEY,
+    rut VARCHAR(15) NOT NULL UNIQUE,
+    nombre VARCHAR(100) NOT NULL,
+    email VARCHAR(120) NOT NULL UNIQUE,
+    carrera VARCHAR(100) NOT NULL,
+    fecha_ingreso DATE NULL
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+```
+
+Al observarlo, relaciona cada columna con un atributo y cada tipo/restricción con su dominio. Los datos ficticios incluyen acentos y `ñ` para hacer visible que `utf8mb4` funciona correctamente.
+
+## 5. Consulta realizada por Flask
+
+Una vez creada la tabla, Flask necesita recuperar las filas. Un **ORM** significa *Object-Relational Mapping* (**Mapeo Objeto-Relacional**): es una técnica o herramienta que permite trabajar con tablas y filas mediante objetos del lenguaje de programación. Todavía no usamos un ORM porque queremos observar directamente el SQL, las tablas, columnas, restricciones y consultas. Mantenemos el SQL directo y visible:
+
+```sql
+SELECT id_estudiante, rut, nombre, email, carrera, fecha_ingreso
+FROM estudiantes
+ORDER BY id_estudiante;
+```
+
+`SELECT` elige los atributos, `FROM` indica la tabla y `ORDER BY` presenta las filas según su identificador. `app.py` ejecuta esta consulta mediante `mysql-connector-python` y entrega el resultado a `index.html`; la plantilla lo muestra en una tabla Bootstrap.
+
+La aplicación es deliberadamente de **solo consulta**. No permite agregar, editar ni eliminar estudiantes. Esas operaciones se introducirán posteriormente, cuando la tabla y sus reglas ya sean comprensibles.
+
+## 6. Transición desde Semana 3
+
+`database/init.sql` se ejecuta cuando MySQL inicializa un volumen vacío. Si `mysql_data` viene de la Semana 3, puede conservar la tabla `posts` y no crear automáticamente `estudiantes`. En este laboratorio, cuyos datos son ficticios, podemos reinicializarlo:
+
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
+> **Advertencia:** `docker compose down -v` elimina el volumen MySQL y **todos sus datos**. Es aceptable solo para estos datos ficticios de laboratorio. No es una estrategia apropiada para conservar datos reales. Las herramientas de migración de esquemas se estudiarán más adelante y no se incorporan esta semana.
+
+Después, espera a que `db` esté saludable y abre <http://localhost:5000>. Debes observar cinco estudiantes, sus seis atributos y una fecha presentada como “Sin registrar”. Esto conecta las reglas del modelo con filas reales mostradas por la aplicación. La guía progresiva y su actividad se encuentran en [`docs/Semana04.md`](docs/Semana04.md).
