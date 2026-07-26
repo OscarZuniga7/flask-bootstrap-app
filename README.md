@@ -1258,3 +1258,98 @@ docker compose up --build -d
 > **Advertencia:** `docker compose down -v` elimina el volumen MySQL y **todos sus datos**. Es aceptable solo para estos datos ficticios de laboratorio. No es una estrategia apropiada para conservar datos reales. Las herramientas de migración de esquemas se estudiarán más adelante y no se incorporan esta semana.
 
 Después, espera a que `db` esté saludable y abre <http://localhost:5000>. Debes observar cinco estudiantes, sus seis atributos y una fecha presentada como “Sin registrar”. Esto conecta las reglas del modelo con filas reales mostradas por la aplicación. La guía progresiva y su actividad se encuentran en [`docs/Semana04.md`](docs/Semana04.md).
+
+# Semana 5: consultas SELECT y búsqueda de estudiantes
+
+## 1. El problema: consultar lo que necesitamos
+
+Esta semana mantenemos exactamente la entidad y la tabla `estudiantes` de la Semana 4. El objetivo es **leer** sus filas, ordenarlas por nombre y permitir que una persona busque por nombre, RUT o carrera. No agregamos, editamos ni eliminamos datos.
+
+La consulta básica es:
+
+```sql
+SELECT id_estudiante, rut, nombre, email, carrera, fecha_ingreso
+FROM estudiantes;
+```
+
+`SELECT` indica qué columnas queremos recuperar y `FROM` indica desde qué tabla. Escribir las seis columnas, en vez de `SELECT *`, hace visible qué datos solicitamos y ayuda a relacionarlos con los atributos estudiados.
+
+## 2. Ordenar y filtrar filas
+
+La lista de la aplicación agrega:
+
+```sql
+ORDER BY nombre ASC;
+```
+
+`ORDER BY` ordena el resultado y `ASC` significa ascendente. Por ejemplo: Ana, José, María, Sofía y Tomás. También existe `DESC` para el orden descendente, pero esta semana no crearemos controles de orden dinámico.
+
+`WHERE` limita las filas a las que cumplen una condición. `LIKE` compara un texto con un patrón:
+
+```sql
+WHERE nombre LIKE 'Mar%';
+```
+
+El símbolo `%` representa **cero o más caracteres**. El ejemplo puede encontrar María, Mario y Marcela. `LIKE '%ría%'` busca `ría` en cualquier posición. Nuestra aplicación forma conceptualmente `%texto%` y usa `OR` para aceptar una coincidencia en cualquiera de tres columnas:
+
+```sql
+WHERE nombre LIKE %s
+   OR rut LIKE %s
+   OR carrera LIKE %s
+ORDER BY nombre ASC;
+```
+
+## 3. Parámetros: SQL y datos por separado
+
+No se debe concatenar lo escrito por una persona dentro del SQL.
+
+```text
+INCORRECTO: texto del usuario → se concatena dentro del SQL
+CORRECTO:   SQL con marcadores → parámetros enviados por separado
+```
+
+La consulta usa marcadores `%s` y `mysql-connector-python` recibe por separado una tupla como `('%María%', '%María%', '%María%')`. **El SQL y los datos ingresados por el usuario se envían por separado.** Esto ayuda a prevenir **SQL Injection o inyección SQL**, un problema de seguridad que puede ocurrir cuando el texto ingresado por un usuario termina siendo interpretado como parte de una instrucción SQL.
+
+## 4. Una separación sencilla de responsabilidades
+
+`database_connection.py` contiene `get_db_connection()`. Esta función usa `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`, conserva `utf8mb4` y evita repetir en distintas partes las instrucciones para conectarse a MySQL.
+
+`app.py` se preocupa de recibir la petición del navegador y mostrar la respuesta. `estudiante_repository.py` se preocupa de conversar con MySQL. Aquí **repositorio** solo significa un archivo sencillo donde reunimos las consultas de estudiantes; no presentamos esta separación como una arquitectura profesional obligatoria ni agregamos capas avanzadas.
+
+```text
+Usuario escribe "María"
+        ↓
+Formulario envía la búsqueda
+        ↓
+Flask recibe "María"
+        ↓
+Capa sencilla de acceso a datos
+        ↓
+SELECT ... WHERE ... LIKE ...
+        ↓
+MySQL devuelve filas
+        ↓
+Flask entrega los resultados a index.html
+        ↓
+Navegador muestra los estudiantes
+```
+
+El contador usa `len(estudiantes)`, es decir, las filas ya recuperadas; no necesita otra consulta `COUNT(*)`. **CRUD** significa Create, Read, Update y Delete (Crear, Leer, Actualizar y Eliminar). Semana 5 continúa exclusivamente con **R = Read**.
+
+## 5. Probar antes del merge
+
+Las pruebas unitarias reemplazan temporalmente la conexión por objetos simples. Así comprueban las consultas y la página sin convertir esta semana en una unidad de infraestructura de pruebas:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Antes del merge también se debe realizar la comprobación integrada local:
+
+```bash
+docker compose config
+docker compose up --build -d
+docker compose ps
+```
+
+Abre <http://localhost:5000> y comprueba: (1) lista completa ordenada por nombre, (2) búsqueda por nombre, (3) por RUT, (4) por carrera, (5) sin resultados, (6) enlace **Limpiar**, (7) contador, (8) caracteres españoles y (9) ausencia de controles INSERT, UPDATE y DELETE. No uses `docker compose down -v`: el modelo no cambió y normalmente se debe conservar el volumen de MySQL. La guía completa está en [`docs/Semana05.md`](docs/Semana05.md).
