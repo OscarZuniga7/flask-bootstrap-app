@@ -11,6 +11,18 @@
         <h1>Estudiantes</h1>
         <p>Datos académicos de consulta. En esta semana no se modifican registros.</p>
 
+        <form method="get" action="{{ url_for('index') }}" class="form-inline well">
+            <div class="form-group">
+                <label for="busqueda">Buscar:</label>
+                <input type="text" id="busqueda" name="busqueda" value="{{ busqueda }}"
+                       class="form-control" placeholder="Nombre, RUT o carrera">
+            </div>
+            <button type="submit" class="btn btn-primary">Buscar</button>
+            <a href="{{ url_for('index') }}" class="btn btn-default">Limpiar</a>
+        </form>
+
+        <p><strong>{{ cantidad }} {{ "estudiante encontrado" if cantidad == 1 else "estudiantes encontrados" }}</strong></p>
+
         <div class="table-responsive">
             <table class="table table-bordered table-striped">
                 <thead>
@@ -34,6 +46,11 @@
                         <td>{{ estudiante[5] if estudiante[5] else "Sin registrar" }}</td>
                     </tr>
                     {% endfor %}
+                    {% if not estudiantes %}
+                    <tr>
+                        <td colspan="6" class="text-center">No hay coincidencias.</td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
