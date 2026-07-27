@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevo estudiante</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+</head>
+<body>
+    <main class="container">
+        <h1>Nuevo estudiante</h1>
+        <p>Los campos marcados con <strong>*</strong> son obligatorios.</p>
+
+        {% if errores %}
+        <div class="alert alert-danger" role="alert">
+            {{ errores.get("general", "Revisa los campos indicados.") }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('nuevo_estudiante') }}" novalidate>
+            {% for campo, etiqueta, tipo, ayuda in [
+                ("rut", "RUT *", "text", "Ejemplo: 12.345.678-9"),
+                ("nombre", "Nombre *", "text", ""),
+                ("email", "Email *", "email", "Ejemplo: ana@ejemplo.cl"),
+                ("carrera", "Carrera *", "text", ""),
+                ("fecha_ingreso", "Fecha de ingreso (opcional)", "date", "")
+            ] %}
+            <div class="form-group {{ 'has-error' if errores.get(campo) else '' }}">
+                <label for="{{ campo }}">{{ etiqueta }}</label>
+                <input type="{{ tipo }}" class="form-control" id="{{ campo }}" name="{{ campo }}"
+                       value="{{ datos[campo] }}" {% if campo != "fecha_ingreso" %}required{% endif %}>
+                {% if ayuda %}<p class="help-block">{{ ayuda }}</p>{% endif %}
+                {% if errores.get(campo) %}<p class="help-block"><strong>{{ errores[campo] }}</strong></p>{% endif %}
+            </div>
+            {% endfor %}
+
+            <button type="submit" class="btn btn-success">Guardar</button>
+            <a href="{{ url_for('index') }}" class="btn btn-default">Cancelar</a>
+        </form>
+    </main>
+</body>
+</html>

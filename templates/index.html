@@ -9,7 +9,15 @@
 <body>
     <main class="container">
         <h1>Estudiantes</h1>
-        <p>Datos académicos de consulta. En esta semana no se modifican registros.</p>
+        <p>Consulta los datos académicos o crea un nuevo estudiante.</p>
+
+        {% with mensajes = get_flashed_messages(with_categories=true) %}
+            {% for categoria, mensaje in mensajes %}
+            <div class="alert alert-{{ categoria }}" role="alert">{{ mensaje }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        <p><a href="{{ url_for('nuevo_estudiante') }}" class="btn btn-success">Nuevo estudiante</a></p>
 
         <form method="get" action="{{ url_for('index') }}" class="form-inline well">
             <div class="form-group">

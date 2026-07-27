@@ -1353,3 +1353,119 @@ docker compose ps
 ```
 
 Abre <http://localhost:5000> y comprueba: (1) lista completa ordenada por nombre, (2) búsqueda por nombre, (3) por RUT, (4) por carrera, (5) sin resultados, (6) enlace **Limpiar**, (7) contador, (8) caracteres españoles y (9) ausencia de controles INSERT, UPDATE y DELETE. No uses `docker compose down -v`: el modelo no cambió y normalmente se debe conservar el volumen de MySQL. La guía completa está en [`docs/Semana05.md`](docs/Semana05.md).
+
+---
+
+# Semana 6: crear estudiantes con INSERT
+
+Hasta la Semana 5 podíamos **leer** estudiantes. Ahora también podemos **crear** uno:
+
+```text
+CRUD
+C ← nuevo: Create (crear)
+R ← se conserva: Read (leer)
+U ← todavía no
+D ← todavía no
+```
+
+## Nuestra primera instrucción INSERT
+
+```sql
+INSERT INTO estudiantes
+    (rut, nombre, email, carrera, fecha_ingreso)
+VALUES
+    ('16.666.666-6', 'Luis Soto', 'luis@ejemplo.cl', 'Diseño', NULL);
+```
+
+- `INSERT INTO estudiantes` indica la tabla donde agregaremos una fila.
+- La lista entre paréntesis indica las columnas que recibirán datos.
+- `VALUES` presenta, en el mismo orden, los valores que guardaremos.
+
+No escribimos `id_estudiante`. Como vimos en la Semana 4, su columna tiene
+`AUTO_INCREMENT`: MySQL crea el siguiente ID automáticamente.
+
+En Flask usamos marcadores y enviamos los datos por separado:
+
+```sql
+INSERT INTO estudiantes
+    (rut, nombre, email, carrera, fecha_ingreso)
+VALUES
+    (%s, %s, %s, %s, %s)
+```
+
+Es la continuidad de la consulta parametrizada de Semana 5 (`WHERE nombre LIKE
+%s`): **SQL y datos viajan separados**. Nunca pegamos texto del formulario en el
+SQL. Después de ejecutar el INSERT, `connection.commit()` confirma que el cambio
+debe quedar guardado. Más adelante se podrán estudiar las transacciones en mayor
+profundidad.
+
+## Del formulario a la tabla
+
+| Formulario | Tabla `estudiantes` |
+|---|---|
+| RUT | `rut` |
+| Nombre | `nombre` |
+| Email | `email` |
+| Carrera | `carrera` |
+| Fecha de ingreso | `fecha_ingreso` |
+
+`id_estudiante` no es editable porque MySQL lo genera con `AUTO_INCREMENT`.
+RUT, nombre, email y carrera son obligatorios; fecha de ingreso es opcional.
+Flask también hace una comprobación deliberadamente básica del email.
+
+**GET** significa aquí: “el navegador solicita ver el formulario”. **POST**
+significa: “el navegador envía a Flask los datos escritos”.
+
+```text
+GET /estudiantes/nuevo → Flask muestra el formulario
+Usuario completa el formulario
+POST /estudiantes/nuevo → Flask recibe → valida → INSERT → MySQL
+```
+
+Si hay un error, Flask vuelve a mostrar el formulario y conserva lo escrito para
+que solo haya que corregir el campo indicado. Los mensajes Bootstrap son breves
+y no muestran detalles internos de MySQL.
+
+## Validación y reglas de la base de datos
+
+La **validación de la aplicación** permite detectar campos vacíos o un email
+evidentemente incompleto y dar ayuda amable. La **restricción de la base de
+datos** protege finalmente la integridad aunque los datos lleguen por otro medio.
+Como vimos en la Semana 4, `rut` y `email` tienen `UNIQUE`. Por eso MySQL rechaza
+un RUT o email repetido; Flask transforma ese resultado en “Ya existe…” sin
+mostrar el error técnico. La base de datos no debe depender solo del formulario.
+
+## POST → REDIRECT → GET
+
+1. **POST:** “entrego la ficha del nuevo estudiante”.
+2. Flask ejecuta el INSERT y el commit.
+3. **REDIRECT:** “Flask me indica que vuelva al listado”.
+4. **GET:** “el navegador solicita la lista actualizada”.
+
+Esto ayuda a que actualizar el navegador no vuelva a enviar accidentalmente el
+formulario. `flash()` guarda un mensaje corto (“Estudiante creado
+correctamente.”) para mostrarlo en la página siguiente.
+
+## Flujo completo
+
+```text
+Usuario pulsa "Nuevo estudiante"
+        ↓ GET
+Flask muestra formulario
+        ↓
+Usuario escribe datos
+        ↓ POST
+Flask valida
+        ↓
+¿Hay error? ── sí → formulario con los mismos datos
+        │ no
+        ↓
+INSERT parametrizado → commit → redirect → GET /
+                                      ↓
+                              listado actualizado
+```
+
+La guía completa, las actividades y las preguntas están en
+[`docs/Semana06.md`](docs/Semana06.md). Los `Mock` y `patch` usados en pruebas
+solo aíslan MySQL durante la verificación; no son contenidos centrales de esta
+semana.
