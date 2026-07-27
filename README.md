@@ -1469,3 +1469,166 @@ La guía completa, las actividades y las preguntas están en
 [`docs/Semana06.md`](docs/Semana06.md). Los `Mock` y `patch` usados en pruebas
 solo aíslan MySQL durante la verificación; no son contenidos centrales de esta
 semana.
+
+# Semana 7: actualizar estudiantes con UPDATE
+
+## 1. El problema y nuestro avance en CRUD
+
+Ya podemos crear y consultar estudiantes. Ahora necesitamos corregir o cambiar
+los datos de una fila existente sin crear otra fila. Esa operación es **Update**.
+
+```text
+Semana 5          Semana 6             Semana 7
+C                 C ← INSERT           C ← INSERT
+R ← SELECT        R ← SELECT           R ← SELECT
+U                 U                    U ← UPDATE
+D                 D                    D
+```
+
+**INSERT crea una fila nueva; UPDATE cambia una fila que ya existe.** DELETE aún
+no está implementado.
+
+## 2. Nuestra primera instrucción UPDATE
+
+```sql
+UPDATE estudiantes
+SET nombre = 'Ana Pérez'
+WHERE id_estudiante = 3;
+```
+
+- `UPDATE estudiantes` indica la tabla que queremos modificar.
+- `SET` anuncia qué columnas recibirán valores nuevos.
+- `nombre = 'Ana Pérez'` indica la columna y su nuevo valor.
+- `WHERE` localiza exactamente la fila que se modificará.
+
+`UPDATE` no crea una fila. En cambio, conserva la fila 3 y cambia su nombre.
+
+## 3. WHERE protege el alcance
+
+Esta instrucción no tiene `WHERE` y podría cambiar la carrera de **todos**:
+
+```sql
+UPDATE estudiantes
+SET carrera = 'Ingeniería';
+```
+
+La aplicación usa una condición precisa:
+
+```sql
+UPDATE estudiantes
+SET carrera = 'Ingeniería'
+WHERE id_estudiante = 3;
+```
+
+> **ATENCIÓN: antes de ejecutar un UPDATE, siempre debemos preguntarnos qué filas afectará la cláusula WHERE.**
+
+## 4. Primero buscamos por clave primaria
+
+Al pulsar **Editar**, Flask recibe el `id_estudiante`. Esta es una clave primaria
+sustituta: identifica de forma estable una sola fila. Por eso se muestra como
+información, pero no como campo editable.
+
+```sql
+SELECT id_estudiante, rut, nombre, email, carrera, fecha_ingreso
+FROM estudiantes
+WHERE id_estudiante = %s;
+```
+
+El ID viaja como parámetro, no pegado al SQL. El `SELECT` puede devolver una fila
+o ninguna. Si no encuentra una, la aplicación dice “No se encontró el estudiante
+solicitado.” y permite volver al listado. Si la encuentra, Flask entrega RUT,
+nombre, email, carrera y fecha al formulario prellenado.
+
+```text
+id_estudiante = 3
+        ↓
+SELECT ... WHERE id_estudiante = %s
+        ↓
+MySQL devuelve una fila
+        ↓
+Flask entrega los datos al formulario
+        ↓
+Formulario aparece prellenado
+```
+
+## 5. UPDATE parametrizado y orden de los datos
+
+La aplicación mantiene visible este SQL:
+
+```sql
+UPDATE estudiantes
+SET rut = %s,
+    nombre = %s,
+    email = %s,
+    carrera = %s,
+    fecha_ingreso = %s
+WHERE id_estudiante = %s;
+```
+
+Cada `%s` recibe el dato que ocupa su misma posición:
+
+```python
+(rut, nombre, email, carrera, fecha_ingreso, id_estudiante)
+```
+
+El orden importa. El último dato corresponde al `%s` de `WHERE`. SQL y datos
+viajan separados: SELECT parametrizado en Semana 5, INSERT parametrizado en
+Semana 6 y UPDATE parametrizado en Semana 7. Tras ejecutarlo,
+`connection.commit()` confirma que el cambio debe quedar guardado, igual que con
+INSERT.
+
+## 6. Validaciones, duplicados y UNIQUE
+
+Creación y edición reutilizan las mismas validaciones sencillas: RUT, nombre,
+email y carrera obligatorios, además de un formato básico de email. La fecha
+sigue siendo opcional. Si hay un error, el formulario conserva lo que el usuario
+escribió para que solo corrija el campo problemático.
+
+`rut` y `email` continúan siendo `UNIQUE`. Conservar el RUT o email del estudiante
+actual es válido: sigue perteneciendo a la misma fila. Usar el valor de **otro**
+estudiante no lo es. Una comprobación previa podría buscar otro registro así:
+
+```sql
+WHERE rut = %s
+  AND id_estudiante <> %s
+```
+
+`<>` significa “distinto de”: buscamos otro estudiante con ese RUT. En esta
+aplicación MySQL realiza la comprobación final mediante `UNIQUE`, y Flask convierte
+el error en “Ya existe otro estudiante…”. Flask ayuda con mensajes amigables;
+MySQL protege finalmente la integridad.
+
+## 7. POST → Redirect → GET y flujo completo
+
+Después de un cambio correcto reutilizamos el patrón de Semana 6:
+
+```text
+Usuario pulsa Editar
+        ↓
+GET /estudiantes/3/editar
+        ↓
+Flask obtiene id_estudiante = 3
+        ↓
+SELECT ... WHERE id_estudiante = %s
+        ↓
+MySQL devuelve el estudiante
+        ↓
+Formulario aparece con sus datos
+        ↓
+Usuario modifica campos
+        ↓ POST
+Flask valida
+        ↓
+UPDATE ... WHERE id_estudiante = %s
+        ↓
+commit() → flash() → redirect
+        ↓
+GET /
+        ↓
+listado actualizado
+```
+
+El redirect evita repetir el UPDATE al refrescar. Los mensajes de éxito, datos
+duplicados y estudiante inexistente se muestran con alertas Bootstrap, sin
+exponer mensajes internos de MySQL. La guía, actividades y preguntas están en
+[`docs/Semana07.md`](docs/Semana07.md).
