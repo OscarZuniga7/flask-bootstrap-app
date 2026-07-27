@@ -91,3 +91,52 @@ class CrearEstudianteRepositoryTest(unittest.TestCase):
         connection.commit.assert_called_once_with()
         cursor.close.assert_called_once_with()
         connection.close.assert_called_once_with()
+
+
+class EditarEstudianteRepositoryTest(unittest.TestCase):
+    def setUp(self):
+        self.cursor = Mock()
+        self.connection = Mock()
+        self.connection.cursor.return_value = self.cursor
+        self.connection_patch = patch.object(
+            estudiante_repository, "get_db_connection", return_value=self.connection
+        )
+        self.connection_patch.start()
+
+    def tearDown(self):
+        self.connection_patch.stop()
+
+    def test_obtener_por_id_es_parametrizado(self):
+        fila = (3, "13.333.333-3", "María Núñez", "maria@example.com", "Diseño", None)
+        self.cursor.fetchone.return_value = fila
+
+        resultado = estudiante_repository.obtener_estudiante_por_id(3)
+
+        self.assertEqual(resultado, fila)
+        sql, parametros = self.cursor.execute.call_args.args
+        self.assertIn("SELECT id_estudiante, rut, nombre, email, carrera", sql)
+        self.assertIn("WHERE id_estudiante = %s", sql)
+        self.assertEqual(parametros, (3,))
+        self.assertNotIn("= 3", sql)
+
+    def test_obtener_estudiante_inexistente_devuelve_none(self):
+        self.cursor.fetchone.return_value = None
+        self.assertIsNone(estudiante_repository.obtener_estudiante_por_id(999))
+
+    def test_update_es_parametrizado_tiene_where_y_commit(self):
+        estudiante_repository.actualizar_estudiante(
+            3, "13.333.333-3", "María González", "maria@example.com", "Diseño", None
+        )
+
+        sql, parametros = self.cursor.execute.call_args.args
+        self.assertIn("UPDATE estudiantes", sql)
+        self.assertIn("SET rut = %s", sql)
+        self.assertIn("WHERE id_estudiante = %s", sql)
+        self.assertEqual(
+            parametros,
+            ("13.333.333-3", "María González", "maria@example.com", "Diseño", None, 3),
+        )
+        self.assertNotIn("María González", sql)
+        self.connection.commit.assert_called_once_with()
+        self.cursor.close.assert_called_once_with()
+        self.connection.close.assert_called_once_with()

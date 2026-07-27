@@ -85,5 +85,104 @@ class NuevoEstudianteTest(unittest.TestCase):
         self.assertIn("Estudiante creado correctamente".encode(), respuesta.data)
 
 
+FILA_MARIA = (
+    3,
+    "13.333.333-3",
+    "María Núñez",
+    "maria@example.com",
+    "Diseño",
+    None,
+)
+
+
+class EditarEstudianteTest(unittest.TestCase):
+    def setUp(self):
+        app.app.config.update(TESTING=True, SECRET_KEY="clave-de-pruebas")
+        self.client = app.app.test_client()
+
+    @patch.object(app, "obtener_estudiante_por_id", return_value=FILA_MARIA)
+    def test_formulario_aparece_prellenado_y_sin_campo_id(self, obtener):
+        respuesta = self.client.get("/estudiantes/3/editar")
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn("María Núñez".encode(), respuesta.data)
+        self.assertIn(b'value="13.333.333-3"', respuesta.data)
+        self.assertNotIn(b'name="id_estudiante"', respuesta.data)
+        obtener.assert_called_once_with(3)
+
+    @patch.object(app, "listar_estudiantes", return_value=[])
+    @patch.object(app, "obtener_estudiante_por_id", return_value=None)
+    def test_estudiante_inexistente_muestra_mensaje(self, obtener, listar):
+        respuesta = self.client.get("/estudiantes/999/editar", follow_redirects=True)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn("No se encontró el estudiante solicitado".encode(), respuesta.data)
+
+    @patch.object(app, "actualizar_estudiante")
+    @patch.object(app, "obtener_estudiante_por_id", return_value=FILA_MARIA)
+    def test_actualizacion_valida_conserva_rut_email_y_redirige(self, obtener, actualizar):
+        datos = {
+            "rut": FILA_MARIA[1],
+            "nombre": "María González",
+            "email": FILA_MARIA[3],
+            "carrera": "Diseño Digital",
+            "fecha_ingreso": "",
+        }
+        respuesta = self.client.post("/estudiantes/3/editar", data=datos)
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertEqual(respuesta.headers["Location"], "/")
+        actualizar.assert_called_once_with(
+            3, FILA_MARIA[1], "María González", FILA_MARIA[3], "Diseño Digital", None
+        )
+
+    @patch.object(app, "actualizar_estudiante")
+    @patch.object(app, "obtener_estudiante_por_id", return_value=FILA_MARIA)
+    def test_campos_obligatorios_no_actualizan(self, obtener, actualizar):
+        respuesta = self.client.post("/estudiantes/3/editar", data={})
+        for mensaje in ("El RUT es obligatorio", "El nombre es obligatorio", "El email es obligatorio", "La carrera es obligatoria"):
+            self.assertIn(mensaje.encode(), respuesta.data)
+        actualizar.assert_not_called()
+
+    @patch.object(app, "actualizar_estudiante")
+    @patch.object(app, "obtener_estudiante_por_id", return_value=FILA_MARIA)
+    def test_email_invalido_conserva_todos_los_datos(self, obtener, actualizar):
+        datos = {
+            "rut": FILA_MARIA[1], "nombre": "María González", "email": "maria@",
+            "carrera": "Diseño Digital", "fecha_ingreso": "2025-03-01",
+        }
+        respuesta = self.client.post("/estudiantes/3/editar", data=datos)
+        self.assertEqual(respuesta.status_code, 200)
+        for valor in datos.values():
+            self.assertIn(valor.encode(), respuesta.data)
+        self.assertIn("formato válido".encode(), respuesta.data)
+        actualizar.assert_not_called()
+
+    def comprobar_duplicado(self, detalle, mensaje):
+        error = IntegrityError(msg=detalle, errno=1062)
+        datos = {
+            "rut": FILA_MARIA[1], "nombre": FILA_MARIA[2], "email": FILA_MARIA[3],
+            "carrera": FILA_MARIA[4], "fecha_ingreso": "",
+        }
+        with patch.object(app, "obtener_estudiante_por_id", return_value=FILA_MARIA), patch.object(
+            app, "actualizar_estudiante", side_effect=error
+        ):
+            respuesta = self.client.post("/estudiantes/3/editar", data=datos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn(mensaje.encode(), respuesta.data)
+        self.assertIn("María Núñez".encode(), respuesta.data)
+
+    def test_rut_duplicado_en_otro_estudiante(self):
+        self.comprobar_duplicado("Duplicate entry for key 'estudiantes.rut'", "Ya existe otro estudiante con ese RUT.")
+
+    def test_email_duplicado_en_otro_estudiante(self):
+        self.comprobar_duplicado("Duplicate entry for key 'estudiantes.email'", "Ya existe otro estudiante con ese correo electrónico.")
+
+    @patch.object(app, "listar_estudiantes", return_value=[])
+    @patch.object(app, "actualizar_estudiante")
+    @patch.object(app, "obtener_estudiante_por_id", return_value=FILA_MARIA)
+    def test_mensaje_exito_despues_de_redirect(self, obtener, actualizar, listar):
+        datos = {"rut": FILA_MARIA[1], "nombre": FILA_MARIA[2], "email": FILA_MARIA[3], "carrera": FILA_MARIA[4], "fecha_ingreso": ""}
+        respuesta = self.client.post("/estudiantes/3/editar", data=datos, follow_redirects=True)
+        self.assertIn("Estudiante actualizado correctamente".encode(), respuesta.data)
+
+
 if __name__ == "__main__":
     unittest.main()

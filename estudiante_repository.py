@@ -23,6 +23,22 @@ SQL_CREAR_ESTUDIANTE = """
         (%s, %s, %s, %s, %s)
 """
 
+SQL_OBTENER_ESTUDIANTE = """
+    SELECT id_estudiante, rut, nombre, email, carrera, fecha_ingreso
+    FROM estudiantes
+    WHERE id_estudiante = %s
+"""
+
+SQL_ACTUALIZAR_ESTUDIANTE = """
+    UPDATE estudiantes
+    SET rut = %s,
+        nombre = %s,
+        email = %s,
+        carrera = %s,
+        fecha_ingreso = %s
+    WHERE id_estudiante = %s
+"""
+
 
 def listar_estudiantes(busqueda=""):
     """Recupera estudiantes, opcionalmente filtrados por un texto."""
@@ -52,6 +68,35 @@ def crear_estudiante(rut, nombre, email, carrera, fecha_ingreso=None):
         cursor.execute(
             SQL_CREAR_ESTUDIANTE,
             (rut, nombre, email, carrera, fecha_ingreso),
+        )
+        # El commit confirma que el cambio debe quedar guardado.
+        connection.commit()
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def obtener_estudiante_por_id(id_estudiante):
+    """Busca mediante la clave primaria y devuelve una fila o None."""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute(SQL_OBTENER_ESTUDIANTE, (id_estudiante,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def actualizar_estudiante(id_estudiante, rut, nombre, email, carrera, fecha_ingreso=None):
+    """Actualiza una sola fila, identificada por su clave primaria."""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    try:
+        # Cada valor corresponde, en orden, a un marcador %s del SQL.
+        cursor.execute(
+            SQL_ACTUALIZAR_ESTUDIANTE,
+            (rut, nombre, email, carrera, fecha_ingreso, id_estudiante),
         )
         # El commit confirma que el cambio debe quedar guardado.
         connection.commit()

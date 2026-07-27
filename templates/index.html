@@ -41,6 +41,7 @@
                         <th>Email</th>
                         <th>Carrera</th>
                         <th>Fecha de ingreso</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -52,11 +53,13 @@
                         <td>{{ estudiante[3] }}</td>
                         <td>{{ estudiante[4] }}</td>
                         <td>{{ estudiante[5] if estudiante[5] else "Sin registrar" }}</td>
+                        <td><a href="{{ url_for('editar_estudiante', id_estudiante=estudiante[0]) }}"
+                               class="btn btn-primary btn-sm">Editar</a></td>
                     </tr>
                     {% endfor %}
                     {% if not estudiantes %}
                     <tr>
-                        <td colspan="6" class="text-center">No hay coincidencias.</td>
+                        <td colspan="7" class="text-center">No hay coincidencias.</td>
                     </tr>
                     {% endif %}
                 </tbody>
