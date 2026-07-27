@@ -66,3 +66,28 @@ class EstudianteRepositoryTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CrearEstudianteRepositoryTest(unittest.TestCase):
+    @patch.object(estudiante_repository, "get_db_connection")
+    def test_insert_es_parametrizado_y_confirma_el_cambio(self, get_connection):
+        connection = Mock()
+        cursor = Mock()
+        connection.cursor.return_value = cursor
+        get_connection.return_value = connection
+
+        estudiante_repository.crear_estudiante(
+            "16.666.666-6", "Luis Soto", "luis@ejemplo.cl", "Diseño", None
+        )
+
+        sql, parametros = cursor.execute.call_args.args
+        self.assertIn("INSERT INTO estudiantes", sql)
+        self.assertIn("VALUES\n        (%s, %s, %s, %s, %s)", sql)
+        self.assertEqual(
+            parametros,
+            ("16.666.666-6", "Luis Soto", "luis@ejemplo.cl", "Diseño", None),
+        )
+        self.assertNotIn("Luis Soto", sql)
+        connection.commit.assert_called_once_with()
+        cursor.close.assert_called_once_with()
+        connection.close.assert_called_once_with()
